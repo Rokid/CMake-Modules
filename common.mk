@@ -54,7 +54,6 @@ foreach (lib IN LISTS rfp_STATIC_LIBS)
 		NAMES lib${lib}.a
 		HINTS ${rootDir}
 		PATH_SUFFIXES ${libPathSuffix}
-		NO_DEFAULT_PATH
 	)
 
 	if (libPathName)
@@ -72,7 +71,6 @@ foreach (lib IN LISTS rfp_SHARED_LIBS)
 		NAMES ${lib}
 		HINTS ${rootDir}
 		PATH_SUFFIXES ${libPathSuffix}
-		NO_DEFAULT_PATH
 	)
 
 	if (libPathName)
