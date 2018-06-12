@@ -1,20 +1,40 @@
 include(CMakeParseArguments)
 
-# params:
+# multiValueArgs:
 #   HINTS
 #   INC_PATH_SUFFIX
 #   LIB_PATH_SUFFIX
-#   HEADER
-#   RPATH <path>|default
-#   RPATH_LINK <path>|default
+#   HEADERS
 #   STATIC_LIBS
 #   SHARED_LIBS
+# options:
+#   REQUIRED
+#   RPATH
 function (findPackage name)
 
+unset(rfp_HINTS CACHE)
+unset(rfp_INC_PATH_SUFFIX CACHE)
+unset(rfp_LIB_PATH_SUFFIX CACHE)
+unset(rfp_HEADERS CACHE)
+unset(rfp_STATIC_LIBS CACHE)
+unset(rfp_SHARED_LIBS CACHE)
+unset(rfp_REQUIRED CACHE)
+unset(rfp_RPATH CACHE)
+
 # parse arguments, rfp(rokid find package)
-set(options REQUIRED)
-set(oneValueArgs HEADER INC_PATH_SUFFIX LIB_PATH_SUFFIX RPATH RPATH_LINK)
-set(multiValueArgs STATIC_LIBS SHARED_LIBS HINTS)
+set(options
+	REQUIRED
+	RPATH
+)
+set(oneValueArgs)
+set(multiValueArgs
+	HINTS
+	HEADERS
+	STATIC_LIBS
+	SHARED_LIBS
+	INC_PATH_SUFFIX
+	LIB_PATH_SUFFIX
+)
 cmake_parse_arguments(rfp "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
 if (rfp_REQUIRED)
@@ -22,29 +42,25 @@ set (logprio FATAL_ERROR)
 else()
 set (logprio STATUS)
 endif()
-if (NOT rfp_HINTS)
-set(rfp_HINTS /usr)
-endif()
-if (NOT rfp_STATIC_LIBS AND NOT rfp_SHARED_LIBS)
-message(${logprio} "findPackage ${name} not specified STATIC_LIBS|SHARED_LIBS")
-endif()
-if (rfp_INC_PATH_SUFFIX)
-set(incPathSuffix ${rfp_INC_PATH_SUFFIX})
-else()
-set(incPathSuffix include)
-endif()
-if (rfp_LIB_PATH_SUFFIX)
-set(libPathSuffix ${rfp_LIB_PATH_SUFFIX})
-else()
-set(libPathSuffix lib)
-endif()
+list(APPEND rfp_HINTS /usr)
+list(APPEND rfp_INC_PATH_SUFFIX include)
+list(APPEND rfp_LIB_PATH_SUFFIX lib)
 
-
-unset(rootDir CACHE)
-find_path(rootDir NAMES ${incPathSuffix}/${rfp_HEADER} HINTS ${rfp_HINTS})
-if (NOT rootDir)
-	message(${logprio} "${name}: Could not find package root dir: header file ${incPathSuffix}/${rfp_HEADER} not found, HINTS ${rfp_HINTS}")
-	return()
+foreach (hfile IN LISTS rfp_HEADERS)
+	unset(inc_root CACHE)
+	find_path(inc_root
+		NAMES ${hfile}
+		HINTS ${rfp_HINTS}
+		PATH_SUFFIXES ${rfp_INC_PATH_SUFFIX}
+	)
+	if (inc_root)
+		list(APPEND includes ${inc_root})
+	else()
+		message(${logprio} "not find ${hfile}, suffix = ${rfp_INC_PATH_SUFFIX}")
+	endif()
+endforeach()
+if (includes)
+	list (REMOVE_DUPLICATES includes)
 endif()
 
 foreach (lib IN LISTS rfp_STATIC_LIBS)
@@ -52,15 +68,14 @@ foreach (lib IN LISTS rfp_STATIC_LIBS)
 	find_library(
 		libPathName
 		NAMES lib${lib}.a
-		HINTS ${rootDir}
-		PATH_SUFFIXES ${libPathSuffix}
+		HINTS ${rfp_HINTS}
+		PATH_SUFFIXES ${rfp_LIB_PATH_SUFFIX}
 	)
 
 	if (libPathName)
-		set(ldflags "${ldflags} -l${lib}")
-		set(st_found true)
+		list(APPEND archives ${libPathName})
 	else()
-		message(${logprio} "Not Found ${name}: lib${lib}.a. HINTS ${rootDir} LIB_PATH_SUFFIX ${libPathSuffix}")
+		message(${logprio} "${name}: Not Found lib${lib}.a. HINTS ${rfp_HINTS} LIB_PATH_SUFFIX ${rfp_LIB_PATH_SUFFIX}")
 	endif()
 endforeach()
 
@@ -69,49 +84,37 @@ foreach (lib IN LISTS rfp_SHARED_LIBS)
 	find_library(
 		libPathName
 		NAMES ${lib}
-		HINTS ${rootDir}
-		PATH_SUFFIXES ${libPathSuffix}
+		HINTS ${rfp_HINTS}
+		PATH_SUFFIXES ${rfp_LIB_PATH_SUFFIX}
 	)
 
 	if (libPathName)
-		set(sh_found true)
-		set(ldflags "${ldflags} -l${lib}")
+		get_filename_component(libPath ${libPathName} DIRECTORY)
+		list(APPEND lib_link_paths ${libPath})
+		list(APPEND lib_names ${lib})
 	else()
-		message(${logprio} "Not Found ${name}: ${lib}. HINTS ${rootDir} LIB_PATH_SUFFIX ${libPathSuffix}")
+		message(${logprio} "${name}: Not Found ${lib}. HINTS ${rfp_HINTS} LIB_PATH_SUFFIX ${rfp_LIB_PATH_SUFFIX}")
 	endif()
 endforeach()
 
-if (sh_found)
-if (rfp_RPATH)
-if (rfp_RPATH STREQUAL default)
-set(rpathFlags "-Wl,-rpath=${rootDir}/${libPathSuffix}")
-else()
-set(rpathFlags "-Wl,-rpath=${rfp_RPATH}")
+if (lib_link_paths)
+list(REMOVE_DUPLICATES lib_link_paths)
 endif()
-endif(rfp_RPATH)
-if (rfp_RPATH_LINK)
-if (rfp_RPATH_LINK STREQUAL default)
-set(rpathFlags "${rpathFlags} -Wl,-rpath-link=${rootDir}/${libPathSuffix}")
-else()
-set(rpathFlags "${rpathFlags} -Wl,-rpath-link=${rfp_RPATH_LINK}")
+if (lib_names)
+list(REMOVE_DUPLICATES lib_names)
 endif()
-endif(rfp_RPATH_LINK)
-endif(sh_found)
-if (rootDir)
-	set(${name}_INCLUDE_DIR ${rootDir}/${incPathSuffix} PARENT_SCOPE)
-endif()
-if (sh_found OR st_found)
-	set(result_libraries "-L${rootDir}/${libPathSuffix} ${ldflags}")
-	if (rpathFlags)
-		set(result_libraries "${result_libraries} ${rpathFlags}")
+
+set(${name}_INCLUDE_DIRS ${includes} PARENT_SCOPE)
+list(APPEND ldflags ${archives})
+foreach (path IN LISTS lib_link_paths)
+	list(APPEND ldflags -L${path})
+	if (rfp_RPATH)
+		list(APPEND ldflags -Wl,-rpath,${path})
 	endif()
-	set(${name}_LIBRARIES ${result_libraries} PARENT_SCOPE)
-	if (rpathFlags)
-		set(${name}_LIBRARIES "-L${rootDir}/${libPathSuffix} ${ldflags} ${rpathFlags}" PARENT_SCOPE)
-	else()
-		set(${name}_LIBRARIES "-L${rootDir}/${libPathSuffix} ${ldflags}" PARENT_SCOPE)
-	endif()
-	message(STATUS "Found ${name}: ${result_libraries}")
-	set (${name}_FOUND TRUE PARENT_SCOPE)
-endif()
+endforeach()
+foreach (lib IN LISTS lib_names)
+	list(APPEND ldflags -l${lib})
+endforeach()
+set(${name}_LIBRARIES ${ldflags} PARENT_SCOPE)
+
 endfunction()
