@@ -10,6 +10,7 @@ include(CMakeParseArguments)
 # options:
 #   REQUIRED
 #   RPATH
+#   RPATH_LINK
 function (findPackage name)
 
 unset(rfp_HINTS CACHE)
@@ -20,11 +21,13 @@ unset(rfp_STATIC_LIBS CACHE)
 unset(rfp_SHARED_LIBS CACHE)
 unset(rfp_REQUIRED CACHE)
 unset(rfp_RPATH CACHE)
+unset(rfp_RPATH_LINK CACHE)
 
 # parse arguments, rfp(rokid find package)
 set(options
 	REQUIRED
 	RPATH
+	RPATH_LINK
 )
 set(oneValueArgs)
 set(multiValueArgs
@@ -110,6 +113,9 @@ foreach (path IN LISTS lib_link_paths)
 	list(APPEND ldflags -L${path})
 	if (rfp_RPATH)
 		list(APPEND ldflags -Wl,-rpath,${path})
+	endif()
+	if (rfp_RPATH_LINK)
+		list(APPEND ldflags -Wl,-rpath-link,${path})
 	endif()
 endforeach()
 foreach (lib IN LISTS lib_names)
