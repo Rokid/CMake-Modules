@@ -123,4 +123,17 @@ foreach (lib IN LISTS lib_names)
 endforeach()
 set(${name}_LIBRARIES ${ldflags} PARENT_SCOPE)
 
-endfunction()
+endfunction(findPackage)
+
+function (git_commit_id outvar)
+unset(cid CACHE)
+execute_process(
+	COMMAND git log
+	COMMAND grep commit
+	COMMAND head "-n 1"
+	OUTPUT_VARIABLE cid
+)
+string(SUBSTRING ${cid} 7 -1 cid)
+string(STRIP ${cid} cid)
+set(${outvar} ${cid} PARENT_SCOPE)
+endfunction(git_commit_id)
