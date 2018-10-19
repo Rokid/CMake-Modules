@@ -45,6 +45,10 @@ set (logprio FATAL_ERROR)
 else()
 set (logprio STATUS)
 endif()
+unset(find_path_extra_option CACHE)
+if (rfp_HINTS)
+set(find_path_extra_option NO_DEFAULT_PATH)
+endif()
 list(APPEND rfp_HINTS /usr)
 list(APPEND rfp_INC_PATH_SUFFIX include)
 list(APPEND rfp_LIB_PATH_SUFFIX lib)
@@ -55,9 +59,11 @@ foreach (hfile IN LISTS rfp_HEADERS)
 		NAMES ${hfile}
 		HINTS ${rfp_HINTS}
 		PATH_SUFFIXES ${rfp_INC_PATH_SUFFIX}
+		${find_path_extra_option}
 	)
 	if (inc_root)
 		list(APPEND includes ${inc_root})
+		message(STATUS "found ${hfile} in path ${inc_root}")
 	else()
 		message(${logprio} "not find ${hfile}, suffix = ${rfp_INC_PATH_SUFFIX}")
 	endif()
