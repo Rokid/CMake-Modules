@@ -141,6 +141,7 @@ endif()
 execute_process(
 	COMMAND cat ${gitdir}/.git/HEAD
 	OUTPUT_VARIABLE cid
+	OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 set(${outvar} ${cid} PARENT_SCOPE)
 endfunction(git_commit_id)
