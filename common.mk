@@ -133,13 +133,14 @@ endfunction(findPackage)
 
 function (git_commit_id outvar)
 unset(cid CACHE)
+if (${ARGC} GREATER 1)
+	set(gitdir ${ARGV1})
+else()
+	set(gitdir ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
 execute_process(
-	COMMAND git log
-	COMMAND grep commit
-	COMMAND head "-n 1"
+	COMMAND cat ${gitdir}/.git/HEAD
 	OUTPUT_VARIABLE cid
 )
-string(SUBSTRING ${cid} 7 -1 cid)
-string(STRIP ${cid} cid)
 set(${outvar} ${cid} PARENT_SCOPE)
 endfunction(git_commit_id)
