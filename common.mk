@@ -139,9 +139,10 @@ else()
 	set(gitdir ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 execute_process(
-	COMMAND cat ${gitdir}/.git/HEAD
+	COMMAND git show --format=%H -s
 	OUTPUT_VARIABLE cid
 	OUTPUT_STRIP_TRAILING_WHITESPACE
+	WORKING_DIRECTORY ${gitdir}
 )
 set(${outvar} ${cid} PARENT_SCOPE)
 endfunction(git_commit_id)
