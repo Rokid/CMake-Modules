@@ -7,6 +7,8 @@ include(CMakeParseArguments)
 #   HEADERS
 #   STATIC_LIBS
 #   SHARED_LIBS
+#   VERSION_SHARED_LIBS
+#   VERSIONS
 # options:
 #   REQUIRED
 #   RPATH
@@ -22,6 +24,8 @@ unset(rfp_SHARED_LIBS CACHE)
 unset(rfp_REQUIRED CACHE)
 unset(rfp_RPATH CACHE)
 unset(rfp_RPATH_LINK CACHE)
+unset(rfp_VERSION_SHARED_LIBS CACHE)
+unset(rfp_VERSIONS CACHE)
 
 # parse arguments, rfp(rokid find package)
 set(options
@@ -29,7 +33,6 @@ set(options
 	RPATH
 	RPATH_LINK
 )
-set(oneValueArgs)
 set(multiValueArgs
 	HINTS
 	HEADERS
@@ -37,6 +40,8 @@ set(multiValueArgs
 	SHARED_LIBS
 	INC_PATH_SUFFIX
 	LIB_PATH_SUFFIX
+	VERSION_SHARED_LIBS
+	VERSIONS
 )
 cmake_parse_arguments(rfp "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -76,7 +81,7 @@ foreach (lib IN LISTS rfp_STATIC_LIBS)
 	unset(libPathName CACHE)
 	find_library(
 		libPathName
-		NAMES lib${lib}.a
+		NAMES ${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX}
 		HINTS ${rfp_HINTS}
 		PATH_SUFFIXES ${rfp_LIB_PATH_SUFFIX}
 	)
@@ -90,13 +95,20 @@ endforeach()
 
 foreach (lib IN LISTS rfp_SHARED_LIBS)
 	unset(libPathName CACHE)
+	if (rfp_VERSION)
+		if (${CMAKE_SHARED_LIBRARY_SUFFIX} STREQUAL ".dylib")
+			set(lib ${CMAKE_SHARED_LIBRARY_PREFIX}${lib}.${rfp_VERSION}${CMAKE_SHARED_LIBRARY_SUFFIX})
+		else()
+			set(lib ${CMAKE_SHARED_LIBRARY_PREFIX}${lib}${CMAKE_SHARED_LIBRARY_SUFFIX}.${rfp_VERSION})
+		endif()
+		message(STATUS "finding library ${lib}")
+	endif(rfp_VERSION)
 	find_library(
 		libPathName
 		NAMES ${lib}
 		HINTS ${rfp_HINTS}
 		PATH_SUFFIXES ${rfp_LIB_PATH_SUFFIX}
 	)
-
 	if (libPathName)
 		get_filename_component(libPath ${libPathName} DIRECTORY)
 		list(APPEND lib_link_paths ${libPath})
@@ -105,6 +117,34 @@ foreach (lib IN LISTS rfp_SHARED_LIBS)
 		message(${logprio} "${name}: Not Found ${lib}. HINTS ${rfp_HINTS} LIB_PATH_SUFFIX ${rfp_LIB_PATH_SUFFIX}")
 	endif()
 endforeach()
+
+unset(verLibsLen CACHE)
+list(LENGTH rfp_VERSION_SHARED_LIBS verLibsLen)
+if (verLibsLen GREATER 0)
+foreach (idx RANGE verLibsLen)
+	unset(libPathName CACHE)
+	list(GET rfp_VERSION_SHARED_LIBS ${idx} lib)
+	list(GET rfp_VERSIONS ${idx} vernum)
+	if (${CMAKE_SHARED_LIBRARY_SUFFIX} STREQUAL ".dylib")
+		set(lib ${CMAKE_SHARED_LIBRARY_PREFIX}${lib}.${vernum}${CMAKE_SHARED_LIBRARY_SUFFIX})
+	else()
+		set(lib ${CMAKE_SHARED_LIBRARY_PREFIX}${lib}${CMAKE_SHARED_LIBRARY_SUFFIX}.${vernum})
+	endif()
+	find_library(
+		libPathName
+		NAMES ${lib}
+		HINTS ${rfp_HINTS}
+		PATH_SUFFIXES ${rfp_LIB_PATH_SUFFIX}
+	)
+	if (libPathName)
+		get_filename_component(libPath ${libPathName} DIRECTORY)
+		list(APPEND lib_link_paths ${libPath})
+		list(APPEND ver_lib_names ${lib})
+	else()
+		message(${logprio} "${name}: Not Found ${lib}. HINTS ${rfp_HINTS} LIB_PATH_SUFFIX ${rfp_LIB_PATH_SUFFIX}")
+	endif()
+endforeach()
+endif()
 
 if (lib_link_paths)
 list(REMOVE_DUPLICATES lib_link_paths)
@@ -125,7 +165,14 @@ foreach (path IN LISTS lib_link_paths)
 	endif()
 endforeach()
 foreach (lib IN LISTS lib_names)
-	list(APPEND ldflags -l${lib})
+	list(APPEND ldflags ${lib})
+endforeach()
+foreach (lib IN LISTS ver_lib_names)
+	if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+		list(APPEND ldflags -l:${lib})
+	else()
+		list(APPEND ldflags ${lib})
+	endif()
 endforeach()
 set(${name}_LIBRARIES ${ldflags} PARENT_SCOPE)
 
